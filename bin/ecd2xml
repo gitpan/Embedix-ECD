@@ -1,0 +1,104 @@
+#!/usr/bin/perl -w
+
+use strict;
+use File::Basename;
+use Getopt::Long;
+use Pod::Usage;
+use Embedix::ECD;
+use Embedix::ECD::XMLWriter qw(xml_from_cons);
+
+my %opt;
+GetOptions(\%opt, 
+    'indent|i=i', 
+    'shiftwidth|sw|s=i', 
+    'help|h',
+    'autowrite|a',
+);
+
+if (defined $opt{help}) {
+    pod2usage(1); 
+}
+
+$opt{indent}     ||= 0;
+$opt{shiftwidth} ||= 2;
+
+if (@ARGV) {
+
+    foreach (@ARGV) {
+        my ($base, $path) = fileparse($_, '\..*');
+        my $xecd_name = $path . $base . ".xecd";
+        if ( -f $_ ) {
+            open(ECD, $_) || die($!);
+        } else {
+            die("$_ is not a file.\n");
+        }
+        if (defined $opt{autowrite}) {
+            open(XECD, "> $xecd_name") || die ($!);
+        } else {
+            *XECD = *STDOUT;
+        }
+
+        my $string = join('', <ECD>);
+        close(ECD);
+        my $cons = Embedix::ECD->consFromString($string);
+        print XECD xml_from_cons (
+            $cons,
+            shiftwidth => $opt{shiftwidth},
+            indent     => $opt{indent},
+        );
+        close(XECD) if (defined $opt{autowrite});
+    }
+
+} else {
+
+    my $string = join('', <STDIN>);
+    my $cons = Embedix::ECD->consFromString($string);
+    print xml_from_cons (
+        $cons,
+        shiftwidth => $opt{shiftwidth},
+        indent     => $opt{indent},
+    );
+
+}
+
+__END__
+
+=head1 NAME
+
+ecd2xml - subverts ecd
+
+=head1 SYNOPSIS
+
+this is how to use me
+
+=head1 DESCRIPTION
+
+this is a general overview of what I do
+
+=head1 OPTIONS
+
+these control my behaviour
+
+=head1 FILES
+
+files that I manipulate
+
+=head1 DIAGNOSTICS
+
+error messages
+
+=head1 REQUIRES
+
+runtime requirements
+
+=head1 SEE ALSO
+
+stuff that relates to me
+
+=head1 AUTHOR
+
+John BEPPU <beppu@lineo.com>
+
+=cut
+
+# $Id: ecd2xml,v 1.3 2000/12/05 23:50:16 beppu Exp $
