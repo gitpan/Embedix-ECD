@@ -56,4 +56,4 @@ Embedix::ECD(3pm)
 
 =cut
 
-# $Id: Group.pm,v 1.5 2000/11/27 08:17:24 beppu Exp $
+# $Id: Group.pm,v 1.1 2001/01/19 00:26:38 beppu Exp $

@@ -56,4 +56,4 @@ Embedix::ECD(3pm)
 
 =cut
 
-# $Id: Autovar.pm,v 1.4 2000/12/05 23:50:52 beppu Exp $
+# $Id: Autovar.pm,v 1.1 2001/01/19 00:26:38 beppu Exp $

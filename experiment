@@ -3,6 +3,7 @@
 use strict;
 use lib qw(lib);
 require "ECD.pm";
+#require "lib/Embedix/ECD/XMLv1.pm";
 use Getopt::Long;
 use Data::Dumper;
 
@@ -19,26 +20,28 @@ $opt{dtd}        ||= "no";
 if (@ARGV) {
     foreach (@ARGV) {
         # eval { $ecd = Embedix::ECD->consFromFile($_) };
-        eval { $ecd = Embedix::ECD->newFromFile($_) };
+        # eval { $ecd = Embedix::ECD->newFromFile($_) };
+        eval { $ecd = Embedix::ECD->consFromXMLFile($_) };
         if ($@) {
             $exit_code++;
             print "$_: $@";
         } else {
-            # print Data::Dumper::Dumper($ecd);
+            print Data::Dumper::Dumper($ecd);
             # print $ecd;
-            print $ecd->toString (
-                shiftwidth => $opt{shiftwidth}, 
-                indent     => $opt{indent},
-            );
+            # print $ecd->toString (
+            #     shiftwidth => $opt{shiftwidth}, 
+            #     indent     => $opt{indent},
+            # );
         }
     }
 } else {
     eval { $ecd = Embedix::ECD->newFromString(join('', <STDIN>)) }; 
+    $ecd->hasChildren() || warn("empty ecd");
     if ($@) {
         $exit_code++;
         print $@;
     } else {
-        # print $ecd;
+        print $ecd->toString;
     }
 }
 
@@ -87,4 +90,4 @@ John BEPPU <beppu@lineo.com>
 
 =cut
 
-# $Id: checkecd,v 1.9 2000/12/11 03:15:14 beppu Exp $
+# $Id: experiment,v 1.2 2001/01/19 19:26:26 beppu Exp $

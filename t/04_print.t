@@ -7,6 +7,7 @@ my $test = 1;
 my $ecd = Embedix::ECD->newFromFile('t/data/build_vars.ecd');
 my $x = $ecd->toString(shiftwidth => 4, indent => 8);
 my $y = <<ECD_TEXT;
+
         <OPTION enable-bb-feature-autowidth>
             <HELP>
                 This feature enables the calculation of terminal and

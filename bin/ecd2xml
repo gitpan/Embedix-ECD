@@ -92,10 +92,17 @@ ecd2xml - converts text in ECD format to an XML equivalent
 
 =head1 SYNOPSIS
 
-syntax
+=over 8
 
-    ecd2xml [OPTION]... [FILE]...
-    ecd2xml [OPTION]... < STDIN > STDOUT
+=item B<ecd2xml>
+
+[OPTION]... [FILE]...
+
+=item B<ecd2xml> 
+
+[OPTION]... < STDIN > STDOUT
+
+=back
 
 =head1 DESCRIPTION
 
@@ -200,4 +207,4 @@ John BEPPU <beppu@lineo.com>
 
 =cut
 
-# $Id: ecd2xml,v 1.5 2001/01/01 06:44:53 beppu Exp $
+# $Id: ecd2xml,v 1.1 2001/01/19 00:26:38 beppu Exp $

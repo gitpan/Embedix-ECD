@@ -3,27 +3,71 @@ Revision history for Perl extension Embedix::ECD.
 + means it still needs to be done
 - means it's done
 
+beyond 1.00
+    + allow for negative indentation? (probably not)
+    + grammar capable of detecting unknown attributes
+
 1.00  TARGET
     - be able to create an object tree from a file
     - be able to render an object tree
-    + grammar capable of detecting imbalanced tags and unknown attributes
+    - grammar capable of detecting imbalanced tags
     + freeze the API after having discussed it w/ others who care
       (but I'm the only one who seems to care)
     + documentation should be complete
     + the subclasses of Embedix::ECD should begin to take on individual
       characteristics (because they can't all be the same).  It annoys
-      me that they are all clones of eachother.
+      me that they are all clones of eachother.  Allowed attributes should
+      vary among different node classes for one thing.
     - submit to CPAN -- when is my PAUSE id coming in? (on my bday of course!)
     + split the constructors that rely on the parser out into
       a factory class.  (maybe)
-    + allow for negative indentation?
+    + make an Embedix::ECD::Node class that the other node classes
+      inherit from.  The parts of Embedix::ECD that are not factory
+      methods will be moved there.  Also make a node class called 
+      Embedix::ECD::Root.
+    + Make a Parse::Yapp-based parser?  Parse::Yapp let's me provide
+      my own lexer, so it should be significantly faster than
+      Parse::RecDescent, and it'll be easier to do magic to get around
+      the weird things.
     + need to allow "<" inside rawtext to be compatible w/ the
       evil version.  argh!  In toXML(), be sure to turn "<" and ">"
       bounded within tags to the entities &lt; and &gt;  This sucks.
+      If I can't get around this bug, at least make the Parse::RecDescent
+      parser die when it encounters it instead of failing silently.
+    + portmap.ecd has a mystery attribute:  BUILD_REQUIRES.
+      I think it's the same as REQUIRES.
+    + kbd.ecd has what appears to be tags inside a multi-line
+      help section.
     + newFromXML()!!!  expat is really fast and kicks the shit out
       of this Parse::RecDescent based parser on large ECDs.
 
-0.08
+0.09
+    - in the grammar, made it so that single-lined attributes
+      have their whitespace trimmed on both the left and right sides.
+    - added a license attribute and a get/set method for it, too.
+      this is my first significant fork away from target wizard ECDs.
+    - added license to the ecd_v1.dtd and the @default_order
+      array in Embedix::ECD::Util and documented the change.
+    - use Carp;
+    - moved unindent_and_aggregate out of the grammar and into
+      Embedix::ECD::Util.
+    - using the production from chipmunk@perlmonks (w/ minor
+      modifications, I can now have '<' inside rawtext!
+    - make unindent_and_aggregate() remove comments
+    - added hasChildren()
+    - added delChild()
+    - system/base/$arch/MAKEDEV.ecd
+      spaces are allowed in node names so I adjusted for that
+    - CONFLICTS attribute added.
+    - applied
+      yy}}po<ESC>V:s/=item /    /<ENTER>{{kV:s/\$ecd->\|()//g<ENTER>
+      to the documentation
+    - in the *_size attributes, it's able to evaluate mathematical
+      expressions, and deal w/ pairs of numbers.  The first number is
+      the base size, and the second number is the give-or-take amount.
+      make_evaluating_getter_method() makes it possible.
+
+0.08  Sun Dec 31 23:50:20 MST 2000
     - added POD for bin/ecd2xml
     - fixed a spacing bug and overzealous lc() bug in toXML()
     - enforced existence of name attribute to new constructor

@@ -15,6 +15,7 @@ sub toString {
     my $opt  = $self->getFormatOptions(@_);
 
     return
+        "\n".
         $opt->{space} . "<OPTION " . $self->name . ">\n" . 
             $self->attributeToString($opt) .    # for the attributes
             $self->SUPER::toString(@_) .        # for the children
@@ -56,4 +57,4 @@ Embedix::ECD(3pm)
 
 =cut
 
-# $Id: Option.pm,v 1.4 2000/11/20 19:50:26 beppu Exp $
+# $Id: Option.pm,v 1.2 2001/02/12 20:50:58 beppu Exp $

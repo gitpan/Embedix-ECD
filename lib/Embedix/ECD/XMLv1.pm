@@ -22,6 +22,7 @@ $Embedix::ECD::XMLv1::__dtd = q/<!-- root node -->
 <!-- attributes -->
 <!ELEMENT help              (#PCDATA)>
 <!ELEMENT prompt            (#PCDATA)>
+<!ELEMENT license           (#PCDATA)>
 <!ELEMENT specpatch         (#PCDATA)>
 <!ELEMENT srpm              (#PCDATA)>
 <!ELEMENT build_vars        (#PCDATA)>
@@ -35,6 +36,7 @@ $Embedix::ECD::XMLv1::__dtd = q/<!-- root node -->
 <!ELEMENT min_dynamic_size  (#PCDATA)>
 <!ELEMENT storage_size      (#PCDATA)>
 <!ELEMENT startup_time      (#PCDATA)>
+<!ELEMENT conflicts         (#PCDATA)>
 <!ELEMENT provides          (#PCDATA)>
 <!ELEMENT requires          (#PCDATA)>
 <!ELEMENT requiresexpr      (#PCDATA)>
@@ -46,6 +48,7 @@ $Embedix::ECD::XMLv1::__dtd = q/<!-- root node -->
   (
     help?,
     prompt?,
+    license?,
     specpatch?,
     srpm?,
     build_vars?,
@@ -59,6 +62,7 @@ $Embedix::ECD::XMLv1::__dtd = q/<!-- root node -->
     min_dynamic_size?,
     storage_size?,
     startup_time?,
+    conflicts?,
     provides?,
     ( requires | requiresexpr )?,
     keeplist?,
@@ -78,6 +82,7 @@ $Embedix::ECD::XMLv1::__dtd = q/<!-- root node -->
   (
     help?,
     prompt?,
+    license?,
     specpatch?,
     srpm?,
     build_vars?,
@@ -91,6 +96,7 @@ $Embedix::ECD::XMLv1::__dtd = q/<!-- root node -->
     min_dynamic_size?,
     storage_size?,
     startup_time?,
+    conflicts?,
     provides?,
     ( requires | requiresexpr )?,
     keeplist?,
@@ -110,6 +116,7 @@ $Embedix::ECD::XMLv1::__dtd = q/<!-- root node -->
   (
     help?,
     prompt?,
+    license?,
     specpatch?,
     srpm?,
     build_vars?,
@@ -123,6 +130,7 @@ $Embedix::ECD::XMLv1::__dtd = q/<!-- root node -->
     min_dynamic_size?,
     storage_size?,
     startup_time?,
+    conflicts?,
     provides?,
     ( requires | requiresexpr )?,
     keeplist?,
@@ -142,6 +150,7 @@ $Embedix::ECD::XMLv1::__dtd = q/<!-- root node -->
   (
     help?,
     prompt?,
+    license?,
     specpatch?,
     srpm?,
     build_vars?,
@@ -155,6 +164,7 @@ $Embedix::ECD::XMLv1::__dtd = q/<!-- root node -->
     min_dynamic_size?,
     storage_size?,
     startup_time?,
+    conflicts?,
     provides?,
     ( requires | requiresexpr )?,
     keeplist?,
@@ -168,7 +178,7 @@ $Embedix::ECD::XMLv1::__dtd = q/<!-- root node -->
 <!ATTLIST autovar
   name CDATA #REQUIRED
 >
-/;
+/; #/
 
 # take a nested arrayref instead of an Embedix::ECD object
 #_______________________________________
@@ -258,86 +268,174 @@ sub xml_from_cons2 {
     return $xml;
 }
 
-{
-    package Embedix::ECD;
-    # use XML::Parser;
 
-    #_______________________________________
-    sub newFromXML {
-        my $class = shift;
-    }
+# a mix-in for Embedix::ECD (and eventually Embedix::ECD::Node)
+#______________________________________________________________________________
 
+package Embedix::ECD;
+use IO::File;
+use XML::Parser;
+
+
+# theoretically, this allows me to keep the
+# parsing of XML documents threadable.  The
+# reason is because $cons is not a global.
+#_______________________________________
+sub handler_list {
+    print "init\n";
+
+    my $cons = [ ];
+    my $i = 0;
+    my @handler;
+    my @tag_stack;
+
+    # start
     #_______________________________________
-    sub toXML {
-        my $self = shift;
-        my $opt  = $self->getFormatOptions(@_);
-        my $dtd;
-        $opt->{dtd} && do {
-            if ($opt->{dtd} eq "yes") {
-                $dtd = qq(<!DOCTYPE ecd SYSTEM "ecd_v1.dtd">\n);
-            } elsif ($opt->{dtd} eq "embed") {
-                $dtd = qq(<!DOCTYPE ecd [\n$Embedix::ECD::XMLv1::__dtd]>);
-            } elsif ($opt->{dtd} eq "no") {
-                $dtd = "";
-            } else {
-                die "dtd => $opt->{dtd} is not a valid option for toXML()\n";
-            }
-        };
-        if ($self->getDepth == 0) {
-            return 
-                qq(<?xml version="1.0"?>\n) .
-                $dtd .
-                "<ecd>\n" . 
-                join('', map { $_->toXML(@_) } $self->getChildren()) .
-                "</ecd>\n";
+    push @handler, 'Start', sub {
+        my $xp  = shift;
+        my $tag = shift;
+        return if ($tag eq 'ecd');
+
+        push(@tag_stack, $tag);
+        my $node      = [ $tag, undef ];
+        $cons->[$i++] = $node;
+
+        print "<$tag>\n";
+    };
+
+    # end
+    #_______________________________________
+    push @handler, 'End', sub {
+        my $xp  = shift;
+        my $tag = shift;
+        return if ($tag eq 'ecd');
+
+        # XXX : expat may have already checked this for me
+        if ($tag_stack[-1] eq $tag) {
+
         } else {
-            my $pad = " " x $opt->{shiftwidth};
-            $opt->{space}  .= $pad;
-            $opt->{space2} .= $pad;
-            return
-                "$opt->{space}<". lc($self->getNodeClass) . 
-                    qq( name=").$self->name.qq(">\n) .
-                    $self->attributeToXML($opt)  .
-                    join('', map { $_->toXML(@_) } $self->getChildren()) .
-                "$opt->{space}</" . lc($self->getNodeClass) . ">\n";
-        }
-    }
 
-    # render the attributes of a node
-    # It's rare for me to nest this much.
+        }
+        print "</$tag>\n";
+    };
+
+    # pcdata
     #_______________________________________
-    sub attributeToXML {
-        my $self = shift;
-        my $opt  = shift;
-        my ($sw, $space, $space2) = map { $opt->{$_} } qw(sw space space2);
-        my $a;
-        return join '', map {
-            $a = $self->getAttribute($_);
-            if (defined($a)) {
-                if (ref($a)) {
-                    if (scalar(@$a)) {
-                        # an aggregate attribute
-                        $space2 . "<" . lc($_) . ">\n" .
-                        join (
-                            '', 
-                            map { 
-                                s/&/&amp;/g; 
-                                $space2 . " " x $sw . "$_\n" 
-                            } @$a
-                        ) .
-                        $space2 . "</" . lc($_) . ">\n";
-                    } else {
-                        # an empty aggregate attribute
-                        "";
-                    }
-                } else {
-                    # a scalar attribute
-                    $space2 . "<" . lc($_) . ">$a" .  
-                    "</" . lc($_) . ">\n";
-                }
-            }
-        } @{$opt->{order}};
+    push @handler, 'Char', sub {
+        my $xp = shift;
+        print "char $_[0]\n";
+    };
+
+    # final release
+    #_______________________________________
+    push @handler, 'Final', sub {
+        my $xp = shift;
+        print "final\n";
+
+        return $cons;
+    };
+
+    return @handler;
+}
+
+#_______________________________________
+sub xml_parser {
+    # construct a new parser
+    my $p = XML::Parser->new( Handlers => { handler_list() } );
+    return $p
+}
+
+#_______________________________________
+sub consFromXMLFile {
+    my $class    = shift;
+    my $filename = shift;
+    my $p        = Embedix::ECD->xml_parser;
+    my $xml_file = IO::File->new($filename);
+    my $cons     = $p->parse($xml_file);
+
+    return $cons;
+}
+
+#_______________________________________
+sub newFromXMLFile {
+    my $class    = shift;
+    my $filename = shift;
+}
+
+#_______________________________________
+sub toXML {
+    my $self = shift;
+    my $opt  = $self->getFormatOptions(@_);
+    my $dtd;
+    $opt->{dtd} && do {
+        if ($opt->{dtd} eq "yes") {
+            $dtd = qq(<!DOCTYPE ecd SYSTEM "ecd_v1.dtd">\n);
+        } elsif ($opt->{dtd} eq "embed") {
+            $dtd = qq(<!DOCTYPE ecd [\n$Embedix::ECD::XMLv1::__dtd]>);
+        } elsif ($opt->{dtd} eq "no") {
+            $dtd = "";
+        } else {
+            die "dtd => $opt->{dtd} is not a valid option for toXML()\n";
+        }
+    };
+    if ($self->getDepth == 0) {
+        return 
+            qq(<?xml version="1.0"?>\n) .
+            $dtd .
+            "<ecd>\n" . 
+            join('', map { $_->toXML(@_) } $self->getChildren()) .
+            "</ecd>\n";
+    } else {
+        my $pad = " " x $opt->{sw};
+        $opt->{space}  .= $pad;
+        $opt->{space2} .= $pad;
+        my $blank = ($self->getNodeClass eq "Option")
+            ? "\n"
+            : "";
+        return
+            $blank .
+            "$opt->{space}<". lc($self->getNodeClass) . 
+                qq( name=").$self->name.qq(">\n) .
+                $self->attributeToXML($opt)  .
+                join('', map { $_->toXML(@_) } $self->getChildren()) .
+            "$opt->{space}</" . lc($self->getNodeClass) . ">\n";
     }
+}
+
+# render the attributes of a node
+# It's rare for me to nest this much.
+#_______________________________________
+sub attributeToXML {
+    my $self = shift;
+    my $opt  = shift;
+    my ($sw, $space, $space2) = map { $opt->{$_} } qw(sw space space2);
+    my $a;
+    return join '', map {
+        $a = $self->getAttribute($_);
+        if (defined($a)) {
+            if (ref($a)) {
+                if (scalar(@$a)) {
+                    # an aggregate attribute
+                    $space2 . "<" . lc($_) . ">\n" .
+                    join (
+                        '', 
+                        map { 
+                            s/&/&amp;/g; 
+                            $space2 . " " x $sw . "$_\n" 
+                        } @$a
+                    ) .
+                    $space2 . "</" . lc($_) . ">\n";
+                } else {
+                    # an empty aggregate attribute
+                    "";
+                }
+            } else {
+                # a scalar attribute
+                $space2 . "<" . lc($_) . ">$a" .  
+                "</" . lc($_) . ">\n";
+            }
+        }
+    } @{$opt->{order}};
 }
 
 1;
@@ -458,4 +556,4 @@ Embedix::ECD(3pm)
 
 =cut
 
-# $Id: XMLv1.pm,v 1.3 2001/01/01 06:44:53 beppu Exp $
+# $Id: XMLv1.pm,v 1.3 2001/02/21 21:04:58 beppu Exp $

@@ -4,6 +4,7 @@
 <!-- attributes -->
 <!ELEMENT help              (#PCDATA)>
 <!ELEMENT prompt            (#PCDATA)>
+<!ELEMENT license           (#PCDATA)>
 <!ELEMENT specpatch         (#PCDATA)>
 <!ELEMENT srpm              (#PCDATA)>
 <!ELEMENT build_vars        (#PCDATA)>
@@ -17,6 +18,7 @@
 <!ELEMENT min_dynamic_size  (#PCDATA)>
 <!ELEMENT storage_size      (#PCDATA)>
 <!ELEMENT startup_time      (#PCDATA)>
+<!ELEMENT conflicts         (#PCDATA)>
 <!ELEMENT provides          (#PCDATA)>
 <!ELEMENT requires          (#PCDATA)>
 <!ELEMENT requiresexpr      (#PCDATA)>
@@ -28,6 +30,7 @@
   (
     help?,
     prompt?,
+    license?,
     specpatch?,
     srpm?,
     build_vars?,
@@ -41,6 +44,7 @@
     min_dynamic_size?,
     storage_size?,
     startup_time?,
+    conflicts?,
     provides?,
     ( requires | requiresexpr )?,
     keeplist?,
@@ -60,6 +64,7 @@
   (
     help?,
     prompt?,
+    license?,
     specpatch?,
     srpm?,
     build_vars?,
@@ -73,6 +78,7 @@
     min_dynamic_size?,
     storage_size?,
     startup_time?,
+    conflicts?,
     provides?,
     ( requires | requiresexpr )?,
     keeplist?,
@@ -92,6 +98,7 @@
   (
     help?,
     prompt?,
+    license?,
     specpatch?,
     srpm?,
     build_vars?,
@@ -105,6 +112,7 @@
     min_dynamic_size?,
     storage_size?,
     startup_time?,
+    conflicts?,
     provides?,
     ( requires | requiresexpr )?,
     keeplist?,
@@ -124,6 +132,7 @@
   (
     help?,
     prompt?,
+    license?,
     specpatch?,
     srpm?,
     build_vars?,
@@ -137,6 +146,7 @@
     min_dynamic_size?,
     storage_size?,
     startup_time?,
+    conflicts?,
     provides?,
     ( requires | requiresexpr )?,
     keeplist?,

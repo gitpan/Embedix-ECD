@@ -2,7 +2,7 @@ use strict;
 use Embedix::ECD;
 use Data::Dumper;
 
-print "1..4\n";
+print "1..5\n";
 my $test = 1;
 
 # construct parser singleton
@@ -29,5 +29,11 @@ $test++;
 my $eb = Embedix::ECD->newFromFile('t/data/embedix_gui.ecd');
 print "ok $test\n";
 $test++;
+
+# the dreated ltgt.ecd
+my $ltgt = Embedix::ECD->newFromFile('t/data/ltgt.ecd');
+print "ok $test\n";
+$test++;
+
 
 # vim:syntax=perl

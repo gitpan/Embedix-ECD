@@ -3,7 +3,7 @@ package Embedix::ECD;
 use strict;
 use vars qw($AUTOLOAD $VERSION);
 
-$VERSION = '0.08';
+$VERSION = '0.09';
 
 # different classes of nodes
 use Embedix::ECD::Autovar;
@@ -12,13 +12,18 @@ use Embedix::ECD::Group;
 use Embedix::ECD::Option;
 
 # misc info
-use Embedix::ECD::Util qw(indent %default @attribute_order);
+use Embedix::ECD::Util qw(
+    indent 
+    unindent_and_aggregate
+    %default 
+    @attribute_order
+);
 
 # damian conway is the man
 use Parse::RecDescent;
 
 # for debugging
-# use Data::Dumper;
+use Data::Dumper;
 
 # for preserving insertion order
 use Tie::IxHash;
@@ -30,14 +35,8 @@ use Tie::IxHash;
 $Embedix::ECD::__grammar = q(
 
     {
-        ();
-        #_______________________________________
-        sub unindent_and_aggregate {
-            my $s;
-            $s = shift;
-            $s =~ s/\s*$//; # the beginning is already trimmed
-            return [ map { s/^\s*//; s/\s*$//; $_ } split("\n", $s) ];
-        }
+        *Parse::RecDescent::unindent_and_aggregate = 
+        \&Embedix::ECD::Util::unindent_and_aggregate;
     }
 
     ecd_arrayref:
@@ -66,15 +65,22 @@ $Embedix::ECD::__grammar = q(
         }
 
     rawtext:
-        m|[^<]+|
+        #m{[^<]+}
+        #m{(?:[^<]|<(?!(?:/[a-zA-Z_]+|[a-zA-Z_]+/?)>))+}
+        m{(?:[^<]|<(?!(/)?[a-zA-Z_]+(?(1)|/?)>))+}
         {
             $return = $item[1];
         }
 
     attribute:
+        # one line w/o tags
         m{(\w+)[ \t]*=(.*)\n}
         {
-            $return = [ $1, $2 ];
+            my $attr  = $1;
+            my $value = $2;
+            $value    =~ s/^\s*//;
+            $value    =~ s/\s*$//;
+            $return   = [ $attr, $value ];
         }
         | tag_open rawtext(s?) tag_close
         {
@@ -114,8 +120,9 @@ $Embedix::ECD::__grammar = q(
         | attribute
 
     node_start:
-        m{<(\w+)\s+(\S+)>}
+        m{<(\w+)\s+(.*?)>}
         {
+            #print STDERR "node $1 $2\n";
             my $nodetype = ucfirst lc $1;
             my $name     = $2;
             $return      = [ $nodetype, $name ];
@@ -166,6 +173,7 @@ sub new {
             range               => undef,
             help                => undef,
             prompt              => undef,
+            license             => undef,
             srpm                => undef,
             specpatch           => undef,
 
@@ -176,6 +184,7 @@ sub new {
 
             # These options have been observed to contain aggregate values.
             build_vars          => undef,
+            conflicts           => undef,
             provides            => undef,
             requires            => undef,
             keeplist            => undef,
@@ -325,6 +334,25 @@ sub make_accessor_method {
     }
 }
 
+# *_size attributes can be mathematical expressions.
+#_______________________________________
+sub make_evaluating_getter_method {
+    my $package = caller;
+    my $method;
+    foreach $method (@_) {
+        no strict 'refs';
+        *{$package . "::eval_$method"} = sub {
+            my $self = shift;
+            my @x = split (
+                /(?<=\d)\s+(?=\d)/,
+                $self->{attribute}{$method}
+            );
+            push @x, 0 if (@x == 1);
+            return map { eval } @x;
+        }
+    }
+}
+
 # in the future, subclasses will be more specific.
 Embedix::ECD::make_accessor_method(qw(
     type
@@ -333,6 +361,7 @@ Embedix::ECD::make_accessor_method(qw(
     range
     help
     prompt
+    license
     srpm
     specpatch
 
@@ -342,6 +371,7 @@ Embedix::ECD::make_accessor_method(qw(
     startup_time
 
     build_vars
+    conflicts
     provides
     requires
     keeplist
@@ -350,6 +380,13 @@ Embedix::ECD::make_accessor_method(qw(
 
     requiresexpr
     if
+));
+
+Embedix::ECD::make_evaluating_getter_method(qw(
+    static_size
+    min_dynamic_size
+    storage_size
+    startup_time
 ));
 
 # get child node objects
@@ -382,11 +419,37 @@ sub addChild {
     return $obj;
 }
 
+# delete a child from a node
+#_______________________________________
+sub delChild {
+    my $self = shift;
+    my $obj  = shift;
+    my $name;
+    if (ref($obj)) {
+        $name = $obj->name;
+    } else {
+        $name = $obj;
+    }
+    if (defined $self->{child}{$name}) {
+        return delete($self->{child}{$name});
+    } else {
+        carp("Child $name does not exist");
+        return undef;
+    }
+}
+
 # return list of children of node
 #_______________________________________
 sub getChildren {
     my $self = shift;
     return values %{$self->{child}};
+}
+
+# true if node has children
+#_______________________________________
+sub hasChildren {
+    my $self = shift;
+    return scalar values %{$self->{child}};
 }
 
 # get child node objects automagically
@@ -519,7 +582,7 @@ __END__
 
 =head1 NAME
 
-Embedix::ECD - represent Embedix Component Descriptions as a tree of perl objects
+Embedix::ECD - Embedix Component Descriptions as objects
 
 =head1 SYNOPSIS
 
@@ -646,39 +709,44 @@ constructors.
 
 =over 4
 
-=item $ecd = Embedix::ECD->new(key => $value, ...)
+=item new(key => $value, ...)
 
 This returns an Embedix::ECD object.  It can be initialized with named
 parameters which represent the attributes the object should have.  The
-set of valid attributes is:
+set of valid attributes is described under L</Attributes>.
 
-    name        # name is mandatory!
+    $system     = Embedix::ECD::Group->new(name => 'System');
+    $utilities  = Embedix::ECD::Group->new(name => 'Utilities');
+    $busybox    = Embedix::ECD::Component->new(
 
-    type
-    value
-    default_value
-    range
-    help
-    prompt
-    srpm
-    specpatch
+        name    => 'busybox',
+        type    => 'bool',
+        value   => 0,
+        srpm    => 'busybox',
 
-    static_size
-    min_dynamic_size
-    storage_size
-    startup_time
+        static_size     => 3006,
+        min_dynamic_size=> 0,
+        storage_size    => 4408,
+        startup_time    => 0,
 
-    build_vars
-    provides
-    requires
-    keeplist
-    choicelist
-    trideps
-
-    requiresexpr
-    if
-
-Their meanings are explained under the B<Attributes> heading.
+        keeplist        => [ '/bin/busybox' ],
+        requires_expr   => [
+            '(libc.so.6 == "y") &&',
+            '(ld-linux.so.2 == "y") &&',
+            '(skellinux == "y") &&',
+            '(  (Misc-utilities == "y")',
+            '|| (File-compression-utilities == "y")',
+            '|| (Network-utilities == "y")',
+            '|| (Process-utilities == "y")',
+            '|| (Directory-utilities == "y")',
+            '|| (User-info-utilities == "y")',
+            '|| (Disk-info-utilities == "y")',
+            '|| (Screen-utilities == "y")',
+            '|| (System-utilities == "y")',
+            '|| (File-manipulation-utilities == "y") )',
+        ],
+                            
+    );
 
 =back
 
@@ -688,25 +756,35 @@ around an C<eval> block.
 
 =over 4
 
-=item $ecd = Embedix::ECD->newFromCons($cons)
+=item newFromCons($cons)
 
 This returns an Embedix::ECD object from a nested arrayref.
 
-=item $ecd = Embedix::ECD->newFromString($string)
+    $ecd = Embedix::ECD->newFromCons($cons)
+
+=item newFromString($string)
 
 This returns an Embedix::ECD object from a string in ECD format.
 
-=item $ecd = Embedix::ECD->newFromFile($filename)
+    $ecd = Embedix::ECD->newFromString($string)
+
+=item newFromFile($filename)
 
 This returns an Embedix::ECD object from an ECD file.
 
-=item $cons = Embedix::ECD->consFromString($string)
+    $ecd = Embedix::ECD->newFromFile($filename)
+
+=item consFromString($string)
 
 This returns a nested arrayref from a string in ECD format.
 
-=item $cons = Embedix::ECD->consFromFile($filename)
+    $cons = Embedix::ECD->consFromString($string)
+
+=item consFromFile($filename)
 
 This returns a nested arrayref from an ECD file.
+
+    $cons = Embedix::ECD->consFromFile($filename)
 
 =back
 
@@ -714,11 +792,13 @@ This returns a nested arrayref from an ECD file.
 
 =over 4
 
-=item $ecd_parser = Embedix::ECD->parser()
+=item Embedix::ECD->parser
 
 This returns an instance of Parse::RecDescent configured to understand
 the ECD grammar.  This instance is a singleton, so you will receive the
 same instance every time.
+
+    $ecd_parser = Embedix::ECD->parser()
 
 =back
 
@@ -790,12 +870,14 @@ The following are accessor methods for child nodes.
 
 =over 4
 
-=item $child_ecd = $ecd->getChild($name)
+=item getChild($name)
 
 This returns a child node with the given $name or undef if no
 such child exists.
 
-=item $child_ecd = $ecd->n($name)
+    $child_ecd = $ecd->getChild($name)
+
+=item n($name)
 
 C<n()> is an alias for C<getChild()>.  "n" stands for "node" and is a
 lot easier to type than "getChild".
@@ -805,13 +887,30 @@ lot easier to type than "getChild".
         ->n('busybox')
         ->n('long-ass-option-name-with-redundant-information');
 
-=item $ecd->addChild($obj)
+=item addChild($obj)
 
 This adds a child to the current node.
 
-=item @child_ecd = $ecd->getChildren()
+    $ecd->addChild($obj)
+
+=item delChild($obj) or delChild($name)
+
+This deletes a child from the current node.
+The child may either be specified by an object or by its name.
+
+    $ecd->delChild($obj) or $ecd->delChild($name)
+
+=item getChildren
 
 This returns a list of all child nodes.
+
+    @child_ecd = $ecd->getChildren()
+
+=item hasChildren
+
+This returns true if the current node has child nodes.
+
+    $ecd->hasChildren()
 
 =back
 
@@ -889,11 +988,11 @@ method behaves as a getter.  When called I<with> a parameter, the method
 behaves as a setter and the value of the parameter is assigned to the
 attribute.
 
-Get
+getter:
 
     my $name = $busybox->name();
 
-Set
+setter:
 
     $busybox->name('busybox');
 
@@ -903,50 +1002,75 @@ These are accessors for attributes that are typically single-valued.
 
 =over 4
 
-=item $ecd->name()
+=item name
 
 This is the name of the node.
 
-=item $ecd->type()
+    $ecd->name()
+
+=item type
 
 This is the type of the node.  This is usually (always?) seen in the
 context of an option and it can contain values such as "bool", "int",
 "int.hex", "string", and "tridep".
 
-=item $ecd->value()
+    $ecd->type()
+
+=item value
 
 This is the value of a node which must be something appropriate for its
 type.
 
-=item $ecd->default_value()
+    $ecd->value()
+
+=item default_value
 
 This is the value taken by the node if value is not defined.
 
-=item $ecd->range()
+    $ecd->default_value()
+
+=item range
 
 For the numerical types, it may be desirable to limit the range of
 values that may be assigned such that C<value()> will always be
 meaningful.  The use of this attribute has only been observed in
 linux.ecd.
 
-=item $ecd->help()
+    $ecd->range()
+
+=item help
 
 This often contains prose regarding the current node.  I think it would
 be nice if it were possible to use an alternative form of mark-up
 language inside these sections.  (HTML, for instance).
 
-=item $ecd->prompt()
+    $ecd->help()
+
+=item prompt
 
 The value in prompt is used in TargetWizard to pose a question to the
 user regarding whether he/she wants to enable an option or not.
 
-=item $ecd->srpm()
+    $ecd->prompt()
+
+=item license
+
+This is the license that the software falls under.  Usually, there is
+only one license, but once in a while you may get a dual-licensed
+package.  In that case, it's OK to give it an arrayref with multiple
+licenses in it.
+
+    $ecd->license()
+
+=item srpm
 
 This contains the name of the source RPM sans version information and
 the file extension.  This attribute almost always has the same value as
 C<name()>.
 
-=item $ecd->specpatch()
+    $ecd->srpm()
+
+=item specpatch
 
 This attribute is only meaningful within the context of a component.
 Specpatches are applied to .spec files just prior to the building of a
@@ -954,33 +1078,61 @@ component.  They are often used to configure the compilation of a
 component.  The busybox package provides a good example of this in
 action.
 
-=item $ecd->static_size()
+    $ecd->specpatch()
+
+=item static_size
 
 This is the sum of .text, .data, and .bss for an option and/or component.
 
-=item $ecd->min_dynamic_size()
+    $ecd->static_size()
+
+=item eval_static_size
+
+If static_size contains a mathematical expression, this method
+evaluates it.
+
+    ($size, $give_or_take) = $ecd->eval_static_size;
+
+=item min_dynamic_size
 
 The very least a program will C<malloc()> during its execution.
 
-=item $ecd->storage_size()
+    $ecd->min_dynamic_size()
+
+=item eval_min_dynamic_size
+
+If min_dynamic_size contains a mathematical expression, this method
+evaluates it.
+
+    ($size, $give_or_take) = $ecd->eval_min_dynamic_size;
+
+=item storage_size
 
 This is the amount of space this component and/or option would consume on
 a filesystem.
 
-=item $ecd->startup_time()
+    $ecd->storage_size()
+
+=item eval_storage_size
+
+If storage_size contains a mathematical expression, this method
+evaluates it.
+
+    ($size, $give_or_take) = $ecd->eval_storage_size;
+
+=item startup_time
 
 The amount of time (in what metric?) from the time a program is executed
 up to the point in time when the program becomes useful.
 
-=item $ecd->requiresexpr()
+    $ecd->startup_time()
 
-This contains a C-like expression describing node dependencies.
+=item eval_startup_time
 
-=item $ecd->if()
+If startup_time contains a mathematical expression, this method
+evaluates it.
 
-I didn't know if using a keyword as a method name would be legal, but
-apparently it is.  I also wonder if more than on 'if' statement is
-allowed per node.
+    ($size, $give_or_take) = $ecd->eval_startup_time;
 
 =back
 
@@ -992,12 +1144,36 @@ an arrayref.
 
 =over 4
 
-=item $ecd->build_vars()
+=item requiresexpr
+
+This contains a C-like expression describing node dependencies.
+
+    $ecd->requiresexpr()
+
+=item if
+
+I didn't know if using a keyword as a method name would be legal, but
+apparently it is.  I also wonder if more than on 'if' statement is
+allowed per node.
+
+    $ecd->if()
+
+=item conflicts
+
+This is used to explicitly specify a node that conflicts with the
+current node.  My first thought is that this is just another way
+to say C<provides>.
+
+    $ecd->conflicts()
+
+=item build_vars
 
 This specifies a list of transformations that can be applied to a .spec
 file prior to building.
 
-=item $ecd->provides()
+    $ecd->build_vars()
+
+=item provides
 
 This is a list of symbolic names that a node is said to be able to
 provide.  For example, grep in busybox provides grep.  GNU/grep also
@@ -1005,23 +1181,33 @@ provides grep.  According to TargetWizard, these two cannot coexist on
 the same instance of an Embedix distribution, because they both provide
 grep.
 
-=item $ecd->requires()
+    $ecd->provides()
+
+=item requires
 
 This is a list of libraries, files, provides, and other nodes required
 by the current node.
 
-=item $ecd->keeplist()
+    $ecd->requires()
+
+=item keeplist
 
 This is a list of files and directories provided by a component or
 option.
 
-=item $ecd->choicelist()
+    $ecd->keeplist()
+
+=item choicelist
 
 This is used for options in the kernel.
 
-=item $ecd->trideps()
+    $ecd->choicelist()
+
+=item trideps
 
 This is used for options in the kernel.  
+
+    $ecd->trideps()
 
 =back
 
@@ -1032,13 +1218,17 @@ parameter and gets or sets it.
 
 =over 4
 
-=item $val = $ecd->getAttribute($name)
+=item getAttribute($name)
 
 This gets the attribute called $name.
 
-=item $ecd->setAttribute($name, $value)
+    $val = $ecd->getAttribute($name)
+
+=item setAttribute($name, $value)
 
 This sets the attribute called $name to $value.
+
+    $ecd->setAttribute($name, $value)
 
 =back
 
@@ -1046,12 +1236,14 @@ This sets the attribute called $name to $value.
 
 =over 4
 
-=item $string = $ecd->toString(indent => 0, shiftwidth => 4)
+=item toString(indent => 0, shiftwidth => 4)
 
 This will render an $ecd object as ASCII in ECD format.  JavaScript
 programmers may find this familiar.  An interesting deviation from the
 JavaScript version of C<toString()> is that this one will accept
 optional parameters that allow one to control the rendering options.
+
+    $string = $ecd->toString(indent => 0, shiftwidth => 4)
 
 =over 4
 
@@ -1067,33 +1259,43 @@ default value is 4.
 
 =back
 
-=item $ecd->mergeWith($the_other_ecd)
+=item mergeWith($the_other_ecd)
 
 This combines the information contained in $the_other_ecd with $ecd.  In
 the event that there is conflicting information, the information in
 $the_other_ecd takes precedence over what already existed in $ecd.
 
-=item $depth = $ecd->getDepth()
+    $ecd->mergeWith($the_other_ecd)
+
+=item getDepth
 
 This method returns how many levels deep one is in the object tree.  The
 root level is considered 0.
 
-=item $name = $ecd->getNodeClass()
+    $depth = $ecd->getDepth()
+
+=item getNodeClass
 
 This returns the node class (ie. Group, Component, Option, or Autovar) of
 an Embedix::ECD object.  It differs from the B<ref()> operator in that 
 the string "Embedix::ECD::" is omitted from the returned value.
 
-=item $opt_hash_ref = $ecd->getFormatOptions(@opt);
+    $name = $ecd->getNodeClass()
+
+=item getFormatOptions(@opt);
 
 This is used internally by implementations of C<toString()> to compute
 and return spacing information based on the formatting parameters passed
 to it.
 
-=item $string = $ecd->attributeToString($opt_hash_ref);
+    $opt_hash_ref = $ecd->getFormatOptions(@opt);
+
+=item attributeToString($opt_hash_ref);
 
 This is used internally by implementations of C<toString()> to render a
 node's attributes.
+
+    $string = $ecd->attributeToString($opt_hash_ref);
 
 =back
 
@@ -1134,13 +1336,15 @@ This parser becomes exponentially slower as the size of ECD data
 increases.  busybox.ecd takes 30 seconds to parse.
 Don't even try to parse linux.ecd -- it will sit there for hours
 just sucking CPU before it ultimately fails and gives you back
-nothing.
+nothing.  I don't know if there's anything I can do about it.
 
-I don't know if there's anything I can do about it.
+I have noticed that XML::Parser (which wraps around the C library,
+expat) is 60 times faster than my Parse::RecDescent-based parser
+when reading busybox.ecd.  I really want to take advantage of this.
 
 =head1 COPYRIGHT
 
-Copyright (c) 2000 John BEPPU.  All rights reserved.  This program is
+Copyright (c) 2000,2001 John BEPPU.  All rights reserved.  This program is
 free software; you can redistribute it and/or modify it under the same
 terms as Perl itself.
 
@@ -1183,4 +1387,4 @@ configurable compilation for the eCos operating system.
 
 =cut
 
-# $Id: ECD.pm,v 1.39 2001/01/01 06:44:53 beppu Exp $
+# $Id: ECD.pm,v 1.9 2001/02/21 21:04:58 beppu Exp $

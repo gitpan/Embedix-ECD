@@ -2,7 +2,7 @@ package Embedix::ECD::Util;
 
 use Exporter;
 @ISA = qw(Exporter);
-@EXPORT_OK = qw(indent %default @attribute_order);
+@EXPORT_OK = qw(indent unindent_and_aggregate %default @attribute_order);
 
 #_______________________________________
 sub indent {
@@ -11,6 +11,18 @@ sub indent {
     if ($n  < 0) { $n  = 0 }
     if ($sw < 0) { $sw = 0 }
     return " " x ($n * $sw);
+}
+
+#_______________________________________
+sub unindent_and_aggregate {
+    my $s;
+    $s = shift;
+    $s =~ s/\s*$//; # the beginning is already trimmed
+    return [ 
+        map { s/^\s*//; s/\s*$//; $_ } 
+        grep { $_ !~ /^\s*#/ }
+        split ("\n", $s) 
+    ];
 }
 
 # misc configuration
@@ -25,6 +37,7 @@ sub indent {
 @Embedix::ECD::Util::attribute_order = qw(
     help
     prompt
+    license
 
     specpatch
     srpm
@@ -42,6 +55,7 @@ sub indent {
     storage_size
     startup_time
 
+    conflicts
     provides
     requires
     requiresexpr
