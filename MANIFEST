@@ -14,7 +14,7 @@ lib/Embedix/ECD/Component.pm
 lib/Embedix/ECD/Group.pm
 lib/Embedix/ECD/Option.pm
 lib/Embedix/ECD/Util.pm
-lib/Embedix/ECD/XMLWriter.pm
+lib/Embedix/ECD/XMLv1.pm
 t/00_init.t
 t/01_basic.t
 t/02_parser.t
@@ -24,5 +24,7 @@ t/data/build_vars.ecd
 t/data/busybox.ecd
 t/data/comment.ecd
 t/data/embedix_gui.ecd
+t/data/ltgt.ecd
 t/data/node.ecd
 t/data/tinylogin.ecd
+t/data/tinylogin.xecd

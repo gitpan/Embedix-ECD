@@ -17,6 +17,28 @@ Revision history for Perl extension Embedix::ECD.
     + split the constructors that rely on the parser out into
       a factory class.  (maybe)
     + allow for negative indentation?
+    + need to allow "<" inside rawtext to be compatible w/ the
+      evil version.  argh!  In toXML(), be sure to turn "<" and ">"
+      bounded within tags to the entities &lt; and &gt;  This sucks.
+    + newFromXML()!!!  expat is really fast and kicks the shit out
+      of this Parse::RecDescent based parser on large ECDs.
+
+0.08
+    - added POD for bin/ecd2xml
+    - fixed a spacing bug and overzealous lc() bug in toXML()
+    - enforced existence of name attribute to new constructor
+    - changed getNodeType() to getNodeClass() to make the naming
+      consistent with the schema used by Embedix::DB::Pg.
+    - rename XMLWriter.pm to XMLv1.pm.  There will hopefully be an
+      XMLv2.pm in the near future w/ nicer semantics.  There may
+      even be an XMLv3.pm if I stick around long enough...  or not...  
+      who knows?
+    - fixed some bugs in bin/ecd2xml.  This is the first time that
+      my own documentation helped me find a bug.  ecd2xml had still
+      been using the obsoleted XMLWriter.pm, and I was wondering why
+      my changes in XMLv1.pm weren't taking effect.  I read my own
+      man page for ecd2xml, and sure enough, I had documented that
+      Embedix::ECD::XMLWriter was one of my requirements.  hehe.
 
 0.07  Wed Dec  6 23:11:29 MST 2000
     - The grammar was simplified and also made capable of detecting

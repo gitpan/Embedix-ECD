@@ -50,3 +50,32 @@ sub indent {
 );
 
 1;
+
+__END__
+
+=head1 NAME
+
+Embedix::ECD::Util - miscellaneous stuff
+
+=head1 SYNOPSIS
+
+import interesting stuff into your namespace
+
+    use Embedix::ECD::Util qw(indent %default @attribute_order)
+
+=head1 DESCRIPTION
+
+In this module are things that didn't quite fit anywhere else.
+I hope to keep the contents of this module to a minimum.
+
+=head1 COPYRIGHT
+
+Copyright (c) 2000 John BEPPU.  All rights reserved.  This program is
+free software; you can redistribute it and/or modify it under the same
+terms as Perl itself.
+
+=head1 AUTHOR
+
+John BEPPU <beppu@lineo.com>
+
+=cut

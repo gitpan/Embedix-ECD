@@ -3,9 +3,9 @@ package Embedix::ECD;
 use strict;
 use vars qw($AUTOLOAD $VERSION);
 
-$VERSION = '0.07';
+$VERSION = '0.08';
 
-# different types of nodes
+# different classes of nodes
 use Embedix::ECD::Autovar;
 use Embedix::ECD::Component;
 use Embedix::ECD::Group;
@@ -66,7 +66,7 @@ $Embedix::ECD::__grammar = q(
         }
 
     rawtext:
-        m{[^<]+}
+        m|[^<]+|
         {
             $return = $item[1];
         }
@@ -106,8 +106,7 @@ $Embedix::ECD::__grammar = q(
                 die "$thisline: was expecting $item[1][0], " .
                     "but found $item[3] instead\n";
             }
-            my $node = [ $item[1], $item[2] ];
-            $return = $node;
+            $return = [ $item[1], $item[2] ];
         }
 
     node_item:
@@ -152,7 +151,7 @@ sub new {
     my %child;
     tie %child, "Tie::IxHash";
     my $self  = { 
-        name   => $opt{name} || undef,
+        name   => $opt{name} || die("name attribute is mandatory\n"),
         parent => undef,
         child  => \%child,
 
@@ -453,12 +452,12 @@ sub getDepth {
     }
 }
 
+# return the class of the node as a string
 #_______________________________________
-sub getNodeType {
+sub getNodeClass {
     my $self = shift;
     my $type = ref($self);
-    $type =~ s/Embedix::ECD:://;
-    return $type;
+    return substr($type, rindex($type, ':') + 1);
 }
 
 # calculate spaces
@@ -569,7 +568,7 @@ print as text
 
 print as XML
 
-    use Embedix::ECD::XMLWriter qw(xml_from_cons);
+    use Embedix::ECD::XMLv1 qw(xml_from_cons);
 
     print $ecd->toXML(shiftwidth => 4, dtd => 'yes');
 
@@ -607,22 +606,23 @@ build an ECD object from scratch by combining instances of Embedix::ECD
 and its subclasses.  These objects can then be turned back into ECD
 files via the C<toString()> method.
 
-The purpose of ECD files is to contain meta-data regarding packages (aka
-components) in the Embedix distribution.  ECD files contain much of the
-same data a .spec file does for an RPM.  A major difference however is that
-ECD files do not contain building instructions whereas .spec files do.
-Another major difference between .spec files and ECD files is the structure.
-ECD files are hierarchically structured whereas .spec files are comparatively
-flat.
+ECD stands for Embedix Component Description, and its purpose is to
+contain meta-data regarding packages (aka components) in the Embedix
+distribution.  ECD files contain much of the same data a .spec file does
+for an RPM.  A major difference however is that ECD files do not contain
+building instructions whereas .spec files do.  Another major difference
+between .spec files and ECD files is the structure.  ECD files are
+hierarchically structured whereas .spec files are comparatively flat.
 
-The ECD format reminds me of the syntax for Apache configuration files.  Items
-are tag-delimited (like in XML) and attributes are found between these tags.
-Comments are written by prefixing them with /^\s*#/.  Unlike apache
-configurations, attribute names and values are separated by an "=" sign,
-whereas in apache the first token is the attribute name and everything after
-that (sans leading whitespace) and up to the end of the line is the
-attribute's value.  Also, unlike apache configurations, attributes may also be
-enclosed in tags, whereas in apache tags are used only to describe nodes.  
+The ECD format reminds me of the syntax for Apache configuration files.
+Items are tag-delimited (like in XML) and attributes are found between
+these tags.  Comments are written by prefixing them with /^\s*#/.
+Unlike apache configurations, attribute names and values are separated
+by an "=" sign, whereas in apache the first token is the attribute name
+and everything after that (sans leading whitespace) and up to the end of
+the line is the attribute's value.  Also, unlike apache configurations,
+attributes may also be enclosed in tags, whereas in apache tags are used
+only to describe nodes.  
 
 ECD files look like pseudo-XML with shell-styled comments.
 
@@ -630,26 +630,27 @@ ECD files look like pseudo-XML with shell-styled comments.
 
 =head2 Constructors
 
-There are two types of constructors provided by this class.  The first kind
-of constructor begins with "new" and returns an Embedix::ECD object.  There
-is another kind of constructor that begins with "cons" and returns the
-syntax tree as nested arrayrefs.
+There are two types of constructors provided by this class.  The first
+kind of constructor begins with "new" and returns an Embedix::ECD
+object.  There is another kind of constructor that begins with "cons"
+and returns the syntax tree as nested arrayrefs.
 
 I realized that creating an object of the syntax tree takes a long time
-(especially for long ECD files).  I also realized that sometimes, the simple
-nested arrayref is useful enough on its own.  It also has the nice property of
-retaining comments whereas the object constructor disposes of comments.  I
-thought if ECD files were ever to be translated into XML, it'd be nice to be
-able to keep the comments.  These factors convinced me that it would be useful
-to have these 2 kinds of constructors.
+(especially for long ECD files).  I also realized that sometimes, the
+simple nested arrayref is useful enough on its own.  It also has the
+nice property of retaining comments whereas the object constructor
+disposes of comments.  I thought if ECD files were ever to be translated
+into XML, it'd be nice to be able to keep the comments.  These factors
+convinced me that it would be useful to have these 2 kinds of
+constructors.
 
 =over 4
 
 =item $ecd = Embedix::ECD->new(key => $value, ...)
 
 This returns an Embedix::ECD object.  It can be initialized with named
-parameters which represent the attributes the object should have.  The set of
-valid attributes is:
+parameters which represent the attributes the object should have.  The
+set of valid attributes is:
 
     name        # name is mandatory!
 
@@ -681,9 +682,9 @@ Their meanings are explained under the B<Attributes> heading.
 
 =back
 
-The following 5 constructors rely on a Parse::RecDescent parser.  When they
-encounter a syntax error they will C<die>, so be sure to wrap them around an
-C<eval> block.
+The following 5 constructors rely on a Parse::RecDescent parser.  When
+they encounter a syntax error they will C<die>, so be sure to wrap them
+around an C<eval> block.
 
 =over 4
 
@@ -715,9 +716,9 @@ This returns a nested arrayref from an ECD file.
 
 =item $ecd_parser = Embedix::ECD->parser()
 
-This returns an instance of Parse::RecDescent configured to understand the
-ECD grammar.  This instance is a singleton, so you will receive the same
-instance every time.
+This returns an instance of Parse::RecDescent configured to understand
+the ECD grammar.  This instance is a singleton, so you will receive the
+same instance every time.
 
 =back
 
@@ -758,8 +759,8 @@ There are 5 (not 4) types of nodes.
 
 This node is implicit but very real.  When invoking any of the
 constructors that begin with "newFrom", one will get back an
-Embedix::ECD object within which the rest of the ECD data will
-be contained.
+Embedix::ECD object within which the rest of the ECD data will be
+contained.
 
 =item Group | Embedix::ECD::Group
 
@@ -796,7 +797,7 @@ such child exists.
 
 =item $child_ecd = $ecd->n($name)
 
-C<n()> is an alias for C<getChild()>.  "n" stands for "node" and is a 
+C<n()> is an alias for C<getChild()>.  "n" stands for "node" and is a
 lot easier to type than "getChild".
 
     $ecd->n('System')
@@ -821,15 +822,15 @@ possible to say something like:
 
     my $busybox = $ecd->System->Utilities->busybox;
 
-and get back the Embedix::ECD::Component object that contains the information
-for the busybox package.  "System", "Utilities", and "busybox" are not
-predefined methods in Embedix::ECD or any of its subclasses, so they are
-delegated to the AUTOLOAD method.  The AUTOLOAD method will try to find
-a child with the same name as the undefined method and it will return it
-if found.
+and get back the Embedix::ECD::Component object that contains the
+information for the busybox package.  "System", "Utilities", and
+"busybox" are not predefined methods in Embedix::ECD or any of its
+subclasses, so they are delegated to the AUTOLOAD method.  The AUTOLOAD
+method will try to find a child with the same name as the undefined
+method and it will return it if found.
 
-I have not yet decided whether the AUTOLOAD should die when a child is not
-found.  Currently undef is returned in this situation.
+I have not yet decided whether the AUTOLOAD should die when a child is
+not found.  Currently undef is returned in this situation.
 
 One annoyance is that many nodes have names with "-" in them.  These
 cannot be AUTOLOADed, because method names may not have a "-" in perl.
@@ -863,8 +864,8 @@ and the aggregate valued provides will look like:
         sed
     </PROVIDES>
 
-Again, these two expressions mean the same thing.  An aggregate of one is
-interpreted just as if it were a single value.
+Again, these two expressions mean the same thing.  An aggregate of one
+is interpreted just as if it were a single value.
 
 Aggregates become useful when attributes needs to have a list of values.
 
@@ -908,13 +909,14 @@ This is the name of the node.
 
 =item $ecd->type()
 
-This is the type of the node.  This is usually (always?) seen in the context of
-an option and it can contain values such as "bool", "int", "int.hex", "string",
-and "tridep".
+This is the type of the node.  This is usually (always?) seen in the
+context of an option and it can contain values such as "bool", "int",
+"int.hex", "string", and "tridep".
 
 =item $ecd->value()
 
-This is the value of a node which must be something appropriate for its type.
+This is the value of a node which must be something appropriate for its
+type.
 
 =item $ecd->default_value()
 
@@ -922,34 +924,35 @@ This is the value taken by the node if value is not defined.
 
 =item $ecd->range()
 
-For the numerical types, it may be desirable to limit the range of values
-that may be assigned such that C<value()> will always be meaningful.  The use
-of this attribute has only been observed in linux.ecd.
+For the numerical types, it may be desirable to limit the range of
+values that may be assigned such that C<value()> will always be
+meaningful.  The use of this attribute has only been observed in
+linux.ecd.
 
 =item $ecd->help()
 
-This often contains prose regarding the current node.  I think it would be
-nice if it were possible to use an alternative form of mark-up language
-inside these sections.  (HTML, for instance).
+This often contains prose regarding the current node.  I think it would
+be nice if it were possible to use an alternative form of mark-up
+language inside these sections.  (HTML, for instance).
 
 =item $ecd->prompt()
 
-The value in prompt is used in TargetWizard to pose a question to the user
-regarding whether he/she wants to enable an option or not.
+The value in prompt is used in TargetWizard to pose a question to the
+user regarding whether he/she wants to enable an option or not.
 
 =item $ecd->srpm()
 
 This contains the name of the source RPM sans version information and
-the file extension.  This attribute almost always has the same value
-as C<name()>.
+the file extension.  This attribute almost always has the same value as
+C<name()>.
 
 =item $ecd->specpatch()
 
 This attribute is only meaningful within the context of a component.
-Specpatches are applied to .spec files just prior to the building
-of a component.  They are often used to configure the compilation
-of a component.  The busybox package provides a good example of this
-in action.
+Specpatches are applied to .spec files just prior to the building of a
+component.  They are often used to configure the compilation of a
+component.  The busybox package provides a good example of this in
+action.
 
 =item $ecd->static_size()
 
@@ -996,19 +999,21 @@ file prior to building.
 
 =item $ecd->provides()
 
-This is a list of symbolic names that a node is said to be able to provide.
-For example, grep in busybox provides grep.  GNU/grep also provides grep.
-According to TargetWizard, these two cannot coexist on the same instance
-of an Embedix distribution, because they both provide grep.
+This is a list of symbolic names that a node is said to be able to
+provide.  For example, grep in busybox provides grep.  GNU/grep also
+provides grep.  According to TargetWizard, these two cannot coexist on
+the same instance of an Embedix distribution, because they both provide
+grep.
 
 =item $ecd->requires()
 
-This is a list of libraries, files, provides, and other nodes required 
+This is a list of libraries, files, provides, and other nodes required
 by the current node.
 
 =item $ecd->keeplist()
 
-This is a list of files and directories provided by a component or option.
+This is a list of files and directories provided by a component or
+option.
 
 =item $ecd->choicelist()
 
@@ -1043,10 +1048,10 @@ This sets the attribute called $name to $value.
 
 =item $string = $ecd->toString(indent => 0, shiftwidth => 4)
 
-This will render an $ecd object as ASCII in ECD format.  JavaScript 
+This will render an $ecd object as ASCII in ECD format.  JavaScript
 programmers may find this familiar.  An interesting deviation from the
-JavaScript version of C<toString()> is that this one will accept optional
-parameters that allow one to control the rendering options.
+JavaScript version of C<toString()> is that this one will accept
+optional parameters that allow one to control the rendering options.
 
 =over 4
 
@@ -1057,31 +1062,33 @@ The default value is 0.
 
 =item shiftwidth
 
-This is the number of spaces a nested item should be indented.
-The default value is 4.
+This is the number of spaces a nested item should be indented.  The
+default value is 4.
 
 =back
 
 =item $ecd->mergeWith($the_other_ecd)
 
-This combines the information contained in $the_other_ecd with $ecd.  In the
-event that there is conflicting information, the information in $the_other_ecd
-takes precedence over what already existed in $ecd.
+This combines the information contained in $the_other_ecd with $ecd.  In
+the event that there is conflicting information, the information in
+$the_other_ecd takes precedence over what already existed in $ecd.
 
 =item $depth = $ecd->getDepth()
 
-This method returns how many levels deep one is in the object tree.
-The root level is considered 0.
+This method returns how many levels deep one is in the object tree.  The
+root level is considered 0.
 
-=item $name = $ecd->getNodeType()
+=item $name = $ecd->getNodeClass()
 
-This returns the node type (ie. group, component, option, or autovar) 
-of an Embedix::ECD object.
+This returns the node class (ie. Group, Component, Option, or Autovar) of
+an Embedix::ECD object.  It differs from the B<ref()> operator in that 
+the string "Embedix::ECD::" is omitted from the returned value.
 
 =item $opt_hash_ref = $ecd->getFormatOptions(@opt);
 
-This is used internally by implementations of C<toString()> to compute and
-return spacing information based on the formatting parameters passed to it.
+This is used internally by implementations of C<toString()> to compute
+and return spacing information based on the formatting parameters passed
+to it.
 
 =item $string = $ecd->attributeToString($opt_hash_ref);
 
@@ -1092,7 +1099,8 @@ node's attributes.
 
 =head1 CLASS VARIABLES
 
-You shouldn't be touching these.  This is just here for your information.
+You shouldn't be touching these.  This is just here for your
+information.
 
 =over 4
 
@@ -1120,11 +1128,21 @@ not implemented
 
 =back
 
+=head1 BUGS
+
+This parser becomes exponentially slower as the size of ECD data
+increases.  busybox.ecd takes 30 seconds to parse.
+Don't even try to parse linux.ecd -- it will sit there for hours
+just sucking CPU before it ultimately fails and gives you back
+nothing.
+
+I don't know if there's anything I can do about it.
+
 =head1 COPYRIGHT
 
 Copyright (c) 2000 John BEPPU.  All rights reserved.  This program is
-free software; you can redistribute it and/or modify it under the
-same terms as Perl itself.
+free software; you can redistribute it and/or modify it under the same
+terms as Perl itself.
 
 =head1 AUTHOR
 
@@ -1140,12 +1158,29 @@ C<ecdlib.py(3)>, C<config2ecd(1)>, C<tw(1)>
 
 =item related perl modules
 
-C<Embedix::ECD::XMLWriter(3pm)>
+Embedix::ECD::XMLv1(3pm)
+
+=item CML2
+
+The Configuration Menu Language is a constraint-based language
+developed by Eric Raymond in an attempt to simplify the process of
+configuring the Linux kernel.
+
+    http://www.tuxedo.org/~esr/kbuild/
+
+=item CDL
+
+The Component Description Language was developed by Cygnus to support
+configurable compilation for the eCos operating system.
+
+    http://sourceware.cygnus.com/ecos/
 
 =item the lastest version
 
-http://opensource.lineo.com/cgi-bin/cvsweb/pm/Embedix/ECD/
+    http://opensource.lineo.com/cgi-bin/cvsweb/pm/Embedix/ECD/
+
+=back
 
 =cut
 
-# $Id: ECD.pm,v 1.31 2000/12/06 22:56:44 beppu Exp $
+# $Id: ECD.pm,v 1.39 2001/01/01 06:44:53 beppu Exp $

@@ -1,4 +1,4 @@
-package Embedix::ECD::XMLWriter;
+package Embedix::ECD::XMLv1;
 
 use strict;
 use vars qw(@ISA @EXPORT_OK);
@@ -16,7 +16,7 @@ use Embedix::ECD::Util qw(%default);
 @EXPORT_OK = qw(xml_from_cons);
 
 # this contains the dtd
-$Embedix::ECD::XMLWriter::__dtd = q/<!-- root node -->
+$Embedix::ECD::XMLv1::__dtd = q/<!-- root node -->
 <!ELEMENT ecd (group*, component*, option*, autovar*)>
 
 <!-- attributes -->
@@ -264,7 +264,7 @@ sub xml_from_cons2 {
 
     #_______________________________________
     sub newFromXML {
-
+        my $class = shift;
     }
 
     #_______________________________________
@@ -276,7 +276,7 @@ sub xml_from_cons2 {
             if ($opt->{dtd} eq "yes") {
                 $dtd = qq(<!DOCTYPE ecd SYSTEM "ecd_v1.dtd">\n);
             } elsif ($opt->{dtd} eq "embed") {
-                $dtd = qq(<!DOCTYPE ecd [\n$Embedix::ECD::XMLWriter::__dtd]>);
+                $dtd = qq(<!DOCTYPE ecd [\n$Embedix::ECD::XMLv1::__dtd]>);
             } elsif ($opt->{dtd} eq "no") {
                 $dtd = "";
             } else {
@@ -291,10 +291,15 @@ sub xml_from_cons2 {
                 join('', map { $_->toXML(@_) } $self->getChildren()) .
                 "</ecd>\n";
         } else {
-            "$opt->{space}<". lc $self->getNodeType .qq( name=").$self->name.qq(">\n) .
-                $self->attributeToXML($opt) .   # for the attributes
-                join('', map { $_->toXML(@_) } $self->getChildren()) .
-            "$opt->{space}</" . lc $self->getNodeType . ">\n";
+            my $pad = " " x $opt->{shiftwidth};
+            $opt->{space}  .= $pad;
+            $opt->{space2} .= $pad;
+            return
+                "$opt->{space}<". lc($self->getNodeClass) . 
+                    qq( name=").$self->name.qq(">\n) .
+                    $self->attributeToXML($opt)  .
+                    join('', map { $_->toXML(@_) } $self->getChildren()) .
+                "$opt->{space}</" . lc($self->getNodeClass) . ">\n";
         }
     }
 
@@ -341,14 +346,14 @@ __END__
 
 =head1 NAME
 
-Embedix::ECD::XMLWriter - adds a method to write ECD data as XML
+Embedix::ECD::XMLv1 - adds a method to write ECD data as XML
 
 =head1 SYNOPSIS
 
 Load appropriate modules first
 
     use Embedix::ECD;
-    use Embedix::ECD::XMLWriter qw(xml_from_cons);
+    use Embedix::ECD::XMLv1 qw(xml_from_cons);
 
 load an ECD and print it as XML
 
@@ -367,7 +372,7 @@ object.
 
 =item Embedix::ECD
 
-This is the module Embedix::ECD::XMLWriter augments.
+This is the module Embedix::ECD::XMLv1 augments.
 
 =back
 
@@ -417,7 +422,7 @@ not implemented.
 =item $xml = $ecd->toXML()
 
 This generates an XML expression of an ECD in accordance to the DTD found
-in $Embedix::ECD::XMLWriter::__dtd.  The generated XML will be well-formed
+in $Embedix::ECD::XMLv1::__dtd.  The generated XML will be well-formed
 and valid.
 
 =item $string = $ecd->attributeToXML()
@@ -430,7 +435,7 @@ This does the same thing as attributeToString() but generates XML, instead.
 
 =over 4
 
-=item $Embedix::ECD::XMLWriter::__dtd
+=item $Embedix::ECD::XMLv1::__dtd
 
 This contains the Document Type Definition for the XML version of the
 ECD format.
@@ -453,4 +458,4 @@ Embedix::ECD(3pm)
 
 =cut
 
-# $Id: XMLWriter.pm,v 1.5 2000/12/06 22:27:24 beppu Exp $
+# $Id: XMLv1.pm,v 1.3 2001/01/01 06:44:53 beppu Exp $

@@ -2,7 +2,7 @@
 
 use strict;
 use lib qw(lib);
-use Embedix::ECD::XMLWriter;
+require "ECD.pm";
 use Getopt::Long;
 use Data::Dumper;
 
@@ -26,10 +26,9 @@ if (@ARGV) {
         } else {
             # print Data::Dumper::Dumper($ecd);
             # print $ecd;
-            print $ecd->toXML (
+            print $ecd->toString (
                 shiftwidth => $opt{shiftwidth}, 
                 indent     => $opt{indent},
-                dtd        => $opt{dtd},
             );
         }
     }
@@ -88,4 +87,4 @@ John BEPPU <beppu@lineo.com>
 
 =cut
 
-# $Id: checkecd,v 1.8 2000/12/06 22:12:03 beppu Exp $
+# $Id: checkecd,v 1.9 2000/12/11 03:15:14 beppu Exp $

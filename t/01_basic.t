@@ -1,11 +1,11 @@
 use strict;
 use Embedix::ECD;
 
-print "1..3\n";
+print "1..4\n";
 my $test = 1;
 
 # dealing with an undefined object
-my $ecd  = Embedix::ECD->new();
+my $ecd  = Embedix::ECD->new(name => 'ecd');
 my $kaka = $ecd->kaka();
 print "not " if (defined $kaka);
 print "ok $test\n";
@@ -28,6 +28,11 @@ my $busybox = Embedix::ECD::Component->new (
     help => 'swiss army knife or something',
 );
 print "not " if ($busybox->srpm ne 'busybox');
+print "ok $test\n";
+$test++;
+
+# testing getNodeClass
+print "not " if ($busybox->getNodeClass() ne "Component");
 print "ok $test\n";
 $test++;
 
